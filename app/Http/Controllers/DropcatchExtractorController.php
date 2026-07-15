@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\ProcessExpiringDomains;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use ZipArchive;
@@ -52,6 +53,7 @@ class DropcatchExtractorController extends Controller
             ]);
         }
 
+        $names = [];
         if($row = fgetcsv($stream)){
             $header = $row;
             for($i = 0; $i < count($header); $i++){
@@ -64,50 +66,32 @@ class DropcatchExtractorController extends Controller
                 ]);
             }
 
-            if(! in_array("domain", $header)){
+            if(! in_array("dropdate", $header)){
                 throw ValidationException::withMessages([
                     'file' => 'The csv file doesn\'t contain a domain column',
                 ]);
             }
 
-            if(! in_array("domain", $header)){
-                throw ValidationException::withMessages([
-                    'file' => 'The csv file doesn\'t contain a drop date column',
-                ]);
-            }
-
-
-            $names = [];
-            $it = 0;
             while ($row = fgetcsv($stream)){
                 $row = array_combine($header, $row);
-                if($it == 1000){
-                    break;
-                }
                 [$name, $ext] = explode(".", $row['domain']);
+                $name = strtolower($name);
                 if($ext != "com"){
                     continue;
                 }
-                if(strlen($name) > 4 && preg_match('/^[a-z]+$/i', $name) == 0){
+                if(preg_match('/^[a-z]+$/i', $name) == 0){
                     continue;
                 }
-                $names[] = $name;
-                $it++;
+                $names[$name] = (object)[
+                    'domain' => $row['domain'],
+                    'expire' => $row['dropdate'],
+                ];
             }
-            $this->evaluateNames($names);
         }
-
-
         $archive->close();
-    }
-
-    private function evaluateNames(array $names)
-    {
-        if(count($names) == 0){
-            return;
+        $chunks = array_chunk($names, 10000, true);
+        foreach ($chunks as $chunk) {
+            ProcessExpiringDomains::dispatch($chunk);
         }
-
-        dd(base_path("script"));
-        dd($names);
     }
 }
