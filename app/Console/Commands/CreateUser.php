@@ -29,11 +29,11 @@ class CreateUser extends Command
     /**
      * Execute the console command.
      */
-    public function handle()
+    public function handle(): int
     {
         $name = $this->option('name') ?? $this->ask('What is the user\'s name?');
         $email = $this->option('email') ?? $this->ask('What is the user\'s email?');
-        $password = $this->option('password') ?? $this->secret('What is the user\'s password? (hidden input)');
+        $password = $this->option('password') ?? $this->secret('What is the user\'s password?');
         $validator = Validator::make(
             [
                 'name' => $name,
